@@ -5,11 +5,11 @@ from starlette import status
 
 from app.crud.todo import delete_todos_by_project
 from app.models.projects import ProjectModel
-from app.schemas.projectSchemas import ProjectSchemas, ProjectSchemasUpdate
+from app.schemas.projectSchemas import ProjectSchemasUpdate, ProjectSchemasCreate
 
 
-async def create_project(project_in:ProjectSchemas, db:AsyncSession):
-    project= ProjectModel(**project_in.model_dump())
+async def create_project(project_in:ProjectSchemasCreate, user_id:int, db:AsyncSession):
+    project= ProjectModel(**project_in.model_dump(), users_creator_id=user_id)
     db.add(project)
     await db.commit()
     await db.refresh(project)
@@ -26,7 +26,7 @@ async def get_projects_by_userid(user_id:int, db:AsyncSession):
 async def update_project(project_in:ProjectSchemasUpdate, project_id:int, db:AsyncSession):
     project= await db.execute(select(ProjectModel).where(ProjectModel.id == project_id))
 
-    if project is None:
+    if project.scalars().first() is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="Project not found")
 
     project_data = project_in.model_dump(exclude_unset=True)
@@ -40,9 +40,13 @@ async def update_project(project_in:ProjectSchemasUpdate, project_id:int, db:Asy
 
 async def delete_project(project_id:int, db:AsyncSession):
     project= await db.execute(select(ProjectModel).where(ProjectModel.id == project_id))
+    result = project.scalars().first()
+    if result is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail="Project not found")
+
     await delete_todos_by_project(project_id,db)
-    await db.delete(project)
+    await db.delete(result)
     await db.commit()
-    await db.refresh(project)
-    return project
+    return {"Project_id": project_id, "status": "deleted"}
 

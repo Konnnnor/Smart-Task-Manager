@@ -3,10 +3,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
 
 from app.core.database import get_db
-from app.core.security import create_access_token
+
 from app.dependencies.depends import get_current_user
 from app.models.users import UserModel
-from app.schemas.Token import Token
+
 from app.schemas.userSchemas import UserSchemasResponse, UserSchemasUpdate
 from app.crud.user import update_user
 

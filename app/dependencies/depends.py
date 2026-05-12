@@ -1,5 +1,7 @@
+from datetime import datetime
+
 import jwt
-from fastapi import Depends, HTTPException
+from fastapi import Depends, HTTPException, Path
 from fastapi.security import OAuth2PasswordBearer
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -7,15 +9,12 @@ from starlette import status
 
 from app.core.config import settings
 from app.core.database import get_db
-from app.crud.project import get_project, update_project, delete_project, create_project
-from app.crud.todo import create_todo, get_todo, update_todo, delete_todo
+from app.crud.project import get_project
+from app.crud.todo import get_todo
 from app.crud.user import get_user_by_email
 
 from app.models.users import UserModel
-
 from app.schemas.Token import  TokenData
-from app.schemas.projectSchemas import ProjectSchemasUpdate, ProjectSchemas, ProjectSchemasResponse
-from app.schemas.todoSchemas import TodoSchemas, TodoSchemasCreate, TodoSchemasUpdate
 
 oauth2_schema=OAuth2PasswordBearer(tokenUrl="/auth/login")
 
@@ -26,7 +25,7 @@ async def get_current_user(token: str = Depends(oauth2_schema), db:AsyncSession=
         detail="Incorrect username or password",
         headers={"WWW-Authenticate": "Bearer"})
     try:
-        payload= jwt.decode(token, settings.SECRET_KEY, algorithms=settings.ALGORITHMS)
+        payload= jwt.decode(token, settings.SECRET_KEY, algorithms=settings.ALGORITHM)
         email: str = payload.get("sub")
         if email is None:
             raise  exception
@@ -44,7 +43,7 @@ async def get_current_user(token: str = Depends(oauth2_schema), db:AsyncSession=
 
 
 async def project_permission(
-    project_id: int,
+    project_id: int=Path(...,ge=0),
     db: AsyncSession = Depends(get_db),
     current_user: UserModel = Depends(get_current_user),
 ):
@@ -65,7 +64,7 @@ async def project_permission(
     return project
 
 async def todo_permission(
-    todo_id: int,
+    todo_id: int=Path(...,ge=0),
     db: AsyncSession = Depends(get_db),
     current_user: UserModel = Depends(get_current_user),
 ):
@@ -77,55 +76,34 @@ async def todo_permission(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Project not found"
         )
-
-    if todo.project_id != project.id and project.users_creator_id != current_user.id:
+    if todo.project_id != project.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions"
         )
-
+    if project.users_creator_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not enough permissions"
+        )
     return todo
 
+async def filters(
+        status: str | None = None,
+        priority: str | None = None,
+        deadline: datetime | None = None,
+        labels: str | None = None):
+    return {
+        "status":status,
+        "priority":priority,
+        "deadline":deadline,
+        "labels":labels,
+    }
 
-
-async def create_one_project(project_in: ProjectSchemas,
-                             current_user: UserModel = Depends(get_current_user),
-                             db: AsyncSession = Depends(get_db)):
-
-    return await create_project(
-        ProjectSchemas(
-            **project_in.model_dump(),
-            users_creator_id=current_user.id),
-        db
-    )
-
-async def update_one_project(
-                            project_in: ProjectSchemasUpdate,
-                            project_id: int,
-                            db: AsyncSession = Depends(get_db)):
-    project = await update_project(project_in, project_id, db)
-    return project
-
-async def delete_one_project(project_in, db: AsyncSession = Depends(get_db)):
-    return await delete_project(project_in.id,db)
-
-async def create_one_todo(todo_in:TodoSchemasCreate,
-                          project_in: ProjectSchemasResponse,
-                          db: AsyncSession = Depends(get_db)):
-
-    return await create_todo(
-        TodoSchemas(
-            **todo_in.model_dump(),
-            project_id=project_in.id),
-        db)
-
-async def update_one_todo(todo_in: TodoSchemasUpdate,
-                          todo_id: int,
-                          db: AsyncSession = Depends(get_db)):
-    todo = await update_todo(todo_in, todo_id, db)
-    return todo
-
-async def delete_one_todo(todo_id: int,
-                          db: AsyncSession = Depends(get_db)):
-    todo = await delete_todo(todo_id, db)
-    return todo
+async def sort(
+        sort_by: str|None=None,
+        is_ASC: bool = True):
+    return {
+        "sort_by":sort_by,
+        "is_asc":is_ASC
+    }

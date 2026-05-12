@@ -1,11 +1,9 @@
-from datetime import datetime
-
+from datetime import datetime, timezone
 
 from sqlalchemy import Integer, String, DateTime, Null
 from sqlalchemy.orm import mapped_column, Mapped, relationship
 
 from app.core.database import Base
-
 
 
 class UserModel(Base):
@@ -15,8 +13,8 @@ class UserModel(Base):
     username: Mapped[str] = mapped_column(String, index=True, nullable=False)
     email: Mapped[str] = mapped_column(String, index=True, unique=True, nullable=False)
     password: Mapped[str] = mapped_column(String , nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=True, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.now(timezone.utc))
+    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=True, default=datetime.now(timezone.utc))
     deleted_at: Mapped[datetime] = mapped_column(DateTime, nullable=True,)
 
     projects: Mapped[list['ProjectModel']]=relationship("ProjectModel", back_populates="users", lazy="selectin")
